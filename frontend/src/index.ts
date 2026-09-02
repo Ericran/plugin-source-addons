@@ -34,7 +34,7 @@ export const sourceAddonsPlugin: PluginDefinition = {
     // normalization (valid base32, a-z2-7): base32("srcaddon").
     id: 'onzggylemrxw4',
     name: 'Source Addons',
-    version: '0.1.0',
+    version: '0.1.1',
     apiVersion: '1.0',
     description: 'Manage Metamod:Source and SourceMod plugins on Source engine servers',
     author: 'SilverSasquatchGameAPDev',

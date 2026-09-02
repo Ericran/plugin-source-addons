@@ -1,6 +1,6 @@
 {
   "name": "source-addons-plugin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "GameAP Source Addons plugin frontend (Metamod:Source / SourceMod)",
   "type": "module",
   "main": "./dist/plugin.js",
