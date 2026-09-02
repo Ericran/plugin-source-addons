@@ -51,9 +51,10 @@ design goes to the GameAP authors.
 
 ## Quick start
 
-1. Get `source-addons.wasm` — download the `source-addons-wasm` artifact from
-   the latest [Actions run](../../actions), or build it yourself (see
-   [Build](#build)).
+1. Get `source-addons.wasm` from the [latest release](../../releases/latest).
+   (Unreleased builds are also on every [Actions run](../../actions) as the
+   `source-addons-wasm` artifact, but those expire and need a signed-in
+   GitHub account.) Or build it yourself — see [Build](#build).
 2. In your GameAP panel: **Administration → Plugins → upload** the `.wasm`
    (or copy it into the panel's plugins directory by hand).
 3. Restart the panel.
@@ -431,6 +432,11 @@ The version lives in **four** places that must agree: `Cargo.toml`,
 `frontend/src/index.ts`. `cargo test` fails if any of them drifts — `npm ci`
 does not check the root version field, so the lockfile is the copy most likely
 to be left behind.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md). Releases are tagged `vX.Y.Z`; each carries
+the built `source-addons.wasm`.
 
 ## License
 

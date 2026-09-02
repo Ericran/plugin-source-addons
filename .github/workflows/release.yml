@@ -1,0 +1,119 @@
+name: Release
+
+# Publishing a GitHub release builds the wasm from the tagged commit and
+# attaches it. Actions artifacts (see build.yml) are not a substitute: they
+# expire, and only signed-in users can download them - a release asset is a
+# permanent, anonymous URL, which is what the README points people at.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+env:
+  # Ref of gameap/gameap providing web/plugin-sdk; pin to a SHA if the SDK
+  # drifts from frontend/package-lock.json
+  GAMEAP_REF: main
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: plugin-source-addons
+
+      # The frontend depends on file:../../gameap-api/web/plugin-sdk, so the
+      # gameap repo must be checked out as a sibling directory named gameap-api.
+      # (The Rust side pulls gameap-plugin-sdk as a cargo git dependency.)
+      - uses: actions/checkout@v4
+        with:
+          repository: gameap/gameap
+          ref: ${{ env.GAMEAP_REF }}
+          path: gameap-api
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            gameap-api/web/plugin-sdk/package-lock.json
+            plugin-source-addons/frontend/package-lock.json
+
+      # The tag is the source of truth for the version. It is written into all
+      # FOUR places the version lives before anything is built - the two the
+      # panel actually reads (PluginInfo, from Cargo.toml; the frontend
+      # PluginDefinition) and the two npm keeps (package.json, and both root
+      # entries of package-lock.json). All four are rewritten rather than just
+      # the two that matter at runtime, because src/consistency.rs fails the
+      # test run below if they disagree - so the version bump is verified by
+      # the suite rather than by a grep here.
+      #
+      # A tag that disagrees with the committed version is not an error; the
+      # tag wins, and the built artifact says so.
+      - name: Set version from tag
+        working-directory: plugin-source-addons
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          # Exported, not just assigned: the node step below reads it from the
+          # environment rather than being string-interpolated into the script.
+          export VERSION="${TAG#v}"
+          sed -i "s/^version = \".*\"$/version = \"${VERSION}\"/" Cargo.toml
+          sed -i "s/^  \"version\": \".*\",$/  \"version\": \"${VERSION}\",/" frontend/package.json
+          sed -i "s/^    version: '.*',$/    version: '${VERSION}',/" frontend/src/index.ts
+          node -e '
+            const fs = require("fs");
+            const path = "frontend/package-lock.json";
+            const lock = JSON.parse(fs.readFileSync(path, "utf8"));
+            lock.version = process.env.VERSION;
+            lock.packages[""].version = process.env.VERSION;
+            fs.writeFileSync(path, JSON.stringify(lock, null, 2) + "\n");
+          '
+
+      # The @gameap/ui tarball on npm is missing its icons/ directory, so the
+      # package from the gameap checkout is installed over it. SDK is built with
+      # vite only ("npm run build" also runs tsc, which fails on @gameap/ui's
+      # missing type declarations); the frontend build only needs dist/index.js.
+      - name: Build plugin SDK
+        working-directory: gameap-api/web/plugin-sdk
+        run: |
+          npm ci
+          npm install --no-save ../frontend/packages/gameap-ui
+          npx vite build
+
+      - name: Build frontend
+        working-directory: plugin-source-addons/frontend
+        run: |
+          npm ci
+          npm run build
+
+      # Installs the toolchain and targets pinned in rust-toolchain.toml
+      - name: Set up Rust
+        working-directory: plugin-source-addons
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: plugin-source-addons
+
+      # A release is not the place to discover a broken build. This also
+      # verifies the version rewrite above: consistency.rs compares all four
+      # copies against CARGO_PKG_VERSION.
+      - name: Test
+        working-directory: plugin-source-addons
+        run: |
+          cargo test
+          cd frontend && npm test
+
+      - name: Build wasm
+        working-directory: plugin-source-addons
+        run: make wasm
+
+      - name: Attach the wasm to the release
+        working-directory: plugin-source-addons
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" source-addons.wasm --clobber
