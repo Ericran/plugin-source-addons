@@ -1,0 +1,35 @@
+[package]
+name = "source-addons"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "GameAP plugin: manage Metamod:Source and SourceMod on Source engine servers"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+gameap-plugin-sdk = { git = "https://github.com/gameap/gameap-proto", branch = "main" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Catalog installs unpack release archives in-plugin (small archives only; big
+# ones go through node-side curl + tar). The Source 1 ecosystem ships both
+# shapes, so both are handled: .zip (deflate only, no time/crypto extras) and
+# .tar.gz - AlliedModders' own drops and most extensions are tarballs.
+zip = { version = "2", default-features = false, features = ["deflate"] }
+tar = { version = "0.4", default-features = false }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+
+[workspace]
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+panic = "abort"
+codegen-units = 1
+
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
